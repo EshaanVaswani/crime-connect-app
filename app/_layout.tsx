@@ -1,39 +1,61 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { TamaguiProvider } from "tamagui";
+import { Tabs } from "expo-router";
+import config from "./../tamagui.config";
+import { Ionicons } from "@expo/vector-icons";
 
-import { useColorScheme } from '@/hooks/useColorScheme';
+export default function Layout() {
+   return (
+      <TamaguiProvider config={config}>
+         <Tabs
+            screenOptions={{
+               tabBarActiveTintColor: "#2563eb",
+               headerShown: false,
+            }}
+         >
+            {/* Home (Landing Page) */}
+            <Tabs.Screen
+               name="index"
+               options={{
+                  title: "Home",
+                  tabBarIcon: ({ color }) => (
+                     <Ionicons name="home" size={24} color={color} />
+                  ),
+               }}
+            />
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+            {/* Community Tab */}
+            <Tabs.Screen
+               name="community"
+               options={{
+                  title: "Community",
+                  tabBarIcon: ({ color }) => (
+                     <Ionicons name="people" size={24} color={color} />
+                  ),
+               }}
+            />
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+            {/* Report Tab */}
+            <Tabs.Screen
+               name="report"
+               options={{
+                  title: "Report",
+                  tabBarIcon: ({ color }) => (
+                     <Ionicons name="alert-circle" size={24} color={color} />
+                  ),
+               }}
+            />
 
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
-  }
-
-  return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
-  );
+            {/* Profile Tab */}
+            <Tabs.Screen
+               name="profile"
+               options={{
+                  title: "Profile",
+                  tabBarIcon: ({ color }) => (
+                     <Ionicons name="person" size={24} color={color} />
+                  ),
+               }}
+            />
+         </Tabs>
+      </TamaguiProvider>
+   );
 }
