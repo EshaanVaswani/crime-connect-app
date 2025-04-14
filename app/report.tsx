@@ -19,6 +19,9 @@ import {
    View,
    Alert,
    TouchableOpacity,
+   Modal,
+   FlatList,
+   SafeAreaView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -89,6 +92,11 @@ const styles = StyleSheet.create({
       marginBottom: 16,
       borderWidth: 1,
       borderColor: "#E0E0E0",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
    },
    button: {
       backgroundColor: "#B71C1C",
@@ -134,36 +142,9 @@ const styles = StyleSheet.create({
       borderRadius: 8,
       paddingHorizontal: 12,
       paddingVertical: 10,
-      justifyContent: "flex-start",
-   },
-   dropdownContainer: {
-      position: "relative",
-      zIndex: 1000,
-   },
-   dropdown: {
-      position: "absolute",
-      backgroundColor: "white",
-      top: 50,
-      left: 0,
-      right: 0,
-      borderWidth: 1,
-      borderColor: "#E0E0E0",
-      borderRadius: 8,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
-      elevation: 5,
-      zIndex: 1000,
-   },
-   dropdownItem: {
-      padding: 15,
-      borderBottomWidth: 1,
-      borderBottomColor: "#EEEEEE",
-   },
-   dropdownItemText: {
-      fontSize: 14,
-      color: "#424242",
+      justifyContent: "space-between",
+      flexDirection: "row",
+      alignItems: "center",
    },
    dropdownButtonText: {
       fontSize: 14,
@@ -172,6 +153,49 @@ const styles = StyleSheet.create({
    dropdownButtonPlaceholder: {
       fontSize: 14,
       color: "#9E9E9E",
+   },
+   // Modal styles
+   modalContainer: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: "rgba(0,0,0,0.5)",
+   },
+   modalContent: {
+      backgroundColor: "white",
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      maxHeight: "60%",
+   },
+   modalHeader: {
+      fontSize: 18,
+      fontWeight: "600",
+      marginBottom: 15,
+      textAlign: "center",
+   },
+   modalItem: {
+      padding: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: "#EEEEEE",
+   },
+   modalItemText: {
+      fontSize: 16,
+   },
+   modalCancelButton: {
+      marginTop: 10,
+      padding: 15,
+      borderRadius: 8,
+      backgroundColor: "#F5F5F5",
+      alignItems: "center",
+   },
+   modalCancelText: {
+      fontSize: 16,
+      color: "#B71C1C",
+      fontWeight: "600",
+   },
+   chevronDown: {
+      fontSize: 16,
+      color: "#757575",
    },
 });
 
@@ -267,22 +291,25 @@ export default function ReportScreen() {
       // In a real app, you would send this data to your backend
    };
 
-   // Custom dropdown implementation
-   const CustomDropdown = ({ value, onChange, items, placeholder }: any) => {
-      const [isOpen, setIsOpen] = useState(false);
+   // New Modal Dropdown component
+   const ModalDropdown = ({ value, onChange, items, placeholder }: any) => {
+      const [modalVisible, setModalVisible] = useState(false);
 
       const getSelectedLabel = () => {
-         const selected: DropdownItem | undefined = items.find(
+         const selected = items.find(
             (item: DropdownItem) => item.value === value
          );
          return selected ? selected.label : placeholder;
       };
 
       return (
-         <View style={styles.dropdownContainer}>
+         <>
             <TouchableOpacity
-               style={styles.selectButton}
-               onPress={() => setIsOpen(!isOpen)}
+               style={[
+                  styles.selectButton,
+                  { borderColor: errors.incidentType ? "#D32F2F" : "#E0E0E0" },
+               ]}
+               onPress={() => setModalVisible(true)}
             >
                <Text
                   style={
@@ -293,27 +320,47 @@ export default function ReportScreen() {
                >
                   {getSelectedLabel()}
                </Text>
+               <Text style={styles.chevronDown}>▼</Text>
             </TouchableOpacity>
 
-            {isOpen && (
-                 <View style={styles.dropdown}>
-                  {items.map((item: DropdownItem, index: number) => (
-                   <TouchableOpacity
-                    key={index}
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                       onChange(item.value);
-                       setIsOpen(false);
-                    }}
-                   >
-                    <Text style={styles.dropdownItemText}>
-                       {item.label}
-                    </Text>
-                   </TouchableOpacity>
-                  ))}
-                 </View>
-            )}
-         </View>
+            <Modal
+               visible={modalVisible}
+               transparent={true}
+               animationType="slide"
+               onRequestClose={() => setModalVisible(false)}
+            >
+               <View style={styles.modalContainer}>
+                  <SafeAreaView style={styles.modalContent}>
+                     <Text style={styles.modalHeader}>
+                        Select Incident Type
+                     </Text>
+                     <FlatList
+                        data={items}
+                        keyExtractor={(item, index) => index.toString()}
+                        renderItem={({ item }) => (
+                           <TouchableOpacity
+                              style={styles.modalItem}
+                              onPress={() => {
+                                 onChange(item.value);
+                                 setModalVisible(false);
+                              }}
+                           >
+                              <Text style={styles.modalItemText}>
+                                 {item.label}
+                              </Text>
+                           </TouchableOpacity>
+                        )}
+                     />
+                     <TouchableOpacity
+                        style={styles.modalCancelButton}
+                        onPress={() => setModalVisible(false)}
+                     >
+                        <Text style={styles.modalCancelText}>Cancel</Text>
+                     </TouchableOpacity>
+                  </SafeAreaView>
+               </View>
+            </Modal>
+         </>
       );
    };
 
@@ -327,7 +374,7 @@ export default function ReportScreen() {
 
                <Form onSubmit={handleSubmit(onSubmit)}>
                   <YStack space="$4" paddingBottom={50}>
-                     {/* Incident Type Dropdown - Fixed implementation */}
+                     {/* Incident Type Dropdown - Modal implementation */}
                      <View style={styles.formSection}>
                         <Controller
                            name="incidentType"
@@ -337,7 +384,7 @@ export default function ReportScreen() {
                                  <Text style={styles.label}>
                                     Incident Type *
                                  </Text>
-                                 <CustomDropdown
+                                 <ModalDropdown
                                     value={field.value}
                                     onChange={field.onChange}
                                     items={incidentTypes}
@@ -364,13 +411,20 @@ export default function ReportScreen() {
                                     When did it happen? *
                                  </Text>
                                  <Button
-                                    style={styles.selectButton}
+                                    style={[
+                                       styles.selectButton,
+                                       {
+                                          borderColor: errors.dateTime
+                                             ? "#D32F2F"
+                                             : "#E0E0E0",
+                                       },
+                                    ]}
                                     onPress={() => {
                                        setMode("date");
                                        setShowDatePicker(true);
                                     }}
                                  >
-                                    <Text>
+                                    <Text style={styles.dropdownButtonText}>
                                        {field.value
                                           ? field.value.toLocaleString()
                                           : "Select Date & Time"}
@@ -459,7 +513,7 @@ export default function ReportScreen() {
                                     <Button
                                        style={{
                                           ...styles.button,
-                                          backgroundColor: "#2196F3",
+                                          backgroundColor: "#B71C1C",
                                        }}
                                        onPress={handleLocation}
                                     >
@@ -515,7 +569,7 @@ export default function ReportScreen() {
                            <Button
                               style={{
                                  ...styles.button,
-                                 backgroundColor: "#388E3C",
+                                 backgroundColor: "#B71C1C",
                               }}
                               onPress={pickImage}
                            >
@@ -533,26 +587,45 @@ export default function ReportScreen() {
                         </YStack>
                      </View>
 
-                     {/* Anonymous Checkbox */}
+                     {/* Anonymous Checkbox Section */}
                      <View style={styles.formSection}>
                         <Controller
                            name="anonymous"
                            control={control}
                            render={({ field }) => (
-                              <XStack alignItems="center" space="$2">
-                                 <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                    size="$4"
+                              <TouchableOpacity
+                                 onPress={() => field.onChange(!field.value)}
+                                 accessible={true}
+                                 accessibilityLabel="Submit report anonymously"
+                                 accessibilityRole="checkbox"
+                              >
+                                 <XStack
+                                    alignItems="center"
+                                    space="$2"
+                                    paddingVertical={8}
                                  >
-                                    <Checkbox.Indicator />
-                                 </Checkbox>
-                                 <Text
-                                    style={{ ...styles.label, marginBottom: 0 }}
-                                 >
-                                    Submit Report Anonymously
-                                 </Text>
-                              </XStack>
+                                    <Checkbox
+                                       checked={field.value}
+                                       size="$4"
+                                       backgroundColor={
+                                          field.value ? "#B71C1C" : "#E0E0E0"
+                                       }
+                                       borderColor={
+                                          field.value ? "#B71C1C" : "#E0E0E0"
+                                       }
+                                    >
+                                       <Checkbox.Indicator backgroundColor="white" />
+                                    </Checkbox>
+                                    <Text
+                                       style={{
+                                          ...styles.label,
+                                          marginBottom: 0,
+                                       }}
+                                    >
+                                       Submit Report Anonymously
+                                    </Text>
+                                 </XStack>
+                              </TouchableOpacity>
                            )}
                         />
                      </View>

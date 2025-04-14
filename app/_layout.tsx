@@ -8,7 +8,7 @@ export default function Layout() {
       <TamaguiProvider config={config}>
          <Tabs
             screenOptions={{
-               tabBarActiveTintColor: "#2563eb",
+               tabBarActiveTintColor: "#B71C1C",
                headerShown: false,
             }}
          >
