@@ -4,12 +4,11 @@ const ReportSchema = new mongoose.Schema(
    {
       incidentType: {
          type: String,
-         enum: ["theft", "assault", "vandalism", "burglary", "other"],
+         enum: ["theft", "assault", "vandalism", "burglary", "other", "missing"],
          required: true,
       },
       dateTime: {
          type: Date,
-         max: Date.now(),
          default: Date.now(),
       },
       location: {

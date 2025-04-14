@@ -1,13 +1,103 @@
 import Report from "../models/report.model.js";
 import asyncHandler from "../utils/async.js";
+import { uploadOnCloudinary } from "../config/cloudinary.js";
+import fs from "fs";
 
 // @desc    Create new report
 // @route   POST /api/v1/reports
 export const createReport = asyncHandler(async (req, res, next) => {
-   // Add user to req.body
-   req.body.user = req.user.id;
+   console.log("Full request:", {
+      body: req.body,
+      files: req.files,
+      headers: req.headers,
+   });
 
-   const report = await Report.create(req.body);
+   console.log("Cloudinary Config:", {
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY?.slice(0, 4) + "...", // Partial reveal
+      api_secret: process.env.CLOUDINARY_API_SECRET?.slice(0, 4) + "...",
+   });
+
+   // Add user to req.body
+   req.body.user = "67fcf244df399e469b5d5fc7";
+
+   // Process media files
+   const mediaUrls = [];
+   // In your createReport controller
+   if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+         try {
+            // Add file verification
+            console.log("File metadata:", {
+               size: file.size,
+               mimetype: file.mimetype,
+               path: file.path,
+               exists: fs.existsSync(file.path),
+            });
+
+            const cloudinaryResponse = await uploadOnCloudinary(file.path);
+
+            if (!cloudinaryResponse) {
+               console.error(
+                  "Null response from Cloudinary for file:",
+                  file.originalname
+               );
+               continue;
+            }
+
+            mediaUrls.push(cloudinaryResponse.secure_url);
+         } catch (error) {
+            console.error("File processing failed:", {
+               file: file.originalname,
+               error: error.message,
+            });
+         }
+      }
+   }
+   // Parse location data safely
+   let locationData;
+   try {
+      // Handle different ways location might be sent
+      if (typeof req.body.location === "string") {
+         locationData = JSON.parse(req.body.location);
+      } else if (req.body.location && typeof req.body.location === "object") {
+         locationData = req.body.location;
+      } else {
+         locationData = { address: "Unknown location" };
+      }
+   } catch (error) {
+      console.error("Error parsing location:", error);
+      locationData = { address: "Error parsing location" };
+   }
+
+   // Create the location object in proper format for MongoDB
+   const location = {
+      type: "Point",
+      coordinates: [
+         parseFloat(locationData.lng || 0),
+         parseFloat(locationData.lat || 0),
+      ],
+      address: locationData.address || "Unknown address",
+   };
+
+   // Create report with correctly processed data
+   const reportData = {
+      incidentType: req.body.incidentType,
+      dateTime: new Date(req.body.dateTime),
+      description: req.body.description,
+      anonymous: req.body.anonymous === "true",
+      user: req.body.user,
+      media: mediaUrls,
+      location: location,
+   };
+
+   console.log("Processed report data:", reportData);
+
+   const report = await Report.create(reportData);
+
+   if (!report) {
+      return next(new Error("Report creation failed"));
+   }
 
    res.status(201).json({
       success: true,

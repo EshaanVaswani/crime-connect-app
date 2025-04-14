@@ -29,6 +29,8 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import api from "../../services/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Zod validation schema
 const reportSchema = z.object({
@@ -56,6 +58,7 @@ const incidentTypes: DropdownItem[] = [
    { label: "Assault", value: "assault" },
    { label: "Vandalism", value: "vandalism" },
    { label: "Burglary", value: "burglary" },
+   { label: "Missing Person", value: "missing" },
    { label: "Other", value: "other" },
 ];
 
@@ -204,6 +207,7 @@ export default function ReportScreen() {
       control,
       handleSubmit,
       setValue,
+      reset,
       formState: { errors },
    } = useForm({
       resolver: zodResolver(reportSchema),
@@ -211,6 +215,7 @@ export default function ReportScreen() {
          anonymous: false,
          location: { address: "" },
          media: [],
+         dateTime: undefined,
       },
    });
 
@@ -218,9 +223,10 @@ export default function ReportScreen() {
    const [showDatePicker, setShowDatePicker] = useState(false);
    const [date, setDate] = useState(new Date());
    const [mode, setMode] = useState<"date" | "time">("date");
-   const [dropdownOpen, setDropdownOpen] = useState(false);
+   const [isSubmitting, setIsSubmitting] = useState(false);
+   const [submitError, setSubmitError] = useState<string | null>(null);
 
-   const pickImage = async () => {
+   const pickImage = async (useCamera = false) => {
       const { status } =
          await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
@@ -231,16 +237,45 @@ export default function ReportScreen() {
          return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const options: ImagePicker.ImagePickerOptions = {
          mediaTypes: "images",
-         allowsEditing: true,
          quality: 0.7,
-      });
+         allowsMultipleSelection: !useCamera,
+         allowsEditing: useCamera,
+      };
+
+      const result = useCamera
+         ? await ImagePicker.launchCameraAsync(options)
+         : await ImagePicker.launchImageLibraryAsync(options);
 
       if (!result.canceled && result.assets) {
-         const newImages = [...images, result.assets[0].uri];
+         const newImages = [
+            ...images,
+            ...result.assets.map((asset) => asset.uri),
+         ];
          setImages(newImages);
-         setValue("media", newImages);
+         setValue("media", newImages); // Update the form value
+      }
+   };
+
+   const testServerConnection = async () => {
+      try {
+         const response = await fetch(
+            "http://192.168.1.100:3000/api/v1/health",
+            {
+               method: "GET",
+               headers: {
+                  Accept: "application/json",
+               },
+            }
+         );
+
+         const data = await response.json();
+         console.log("Server connection test response:", data);
+         Alert.alert("Connection Test", "Successfully connected to the server");
+      } catch (error: any) {
+         console.error("Connection test failed:", error);
+         Alert.alert("Connection Test Failed", error.message);
       }
    };
 
@@ -281,15 +316,122 @@ export default function ReportScreen() {
       return `Location near ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
    };
 
-   const onSubmit = (data: any) => {
-      console.log("Form submitted:", data);
-      Alert.alert(
-         "Report Submitted",
-         "Thank you for your report. Authorities have been notified.",
-         [{ text: "OK" }]
-      );
-      // In a real app, you would send this data to your backend
+   // Modified onSubmit function for ReportScreen.tsx
+   const onSubmit = async (formData: any) => {
+      try {
+         setIsSubmitting(true);
+         setSubmitError(null);
+         console.log("Form data before processing:", formData);
+
+         // Create a proper FormData object
+         const form = new FormData();
+
+         // Append simple fields
+         form.append("incidentType", formData.incidentType);
+         form.append("dateTime", formData.dateTime.toISOString());
+         form.append("description", formData.description);
+         form.append("anonymous", formData.anonymous.toString());
+
+         // Convert location object to JSON string
+         form.append("location", JSON.stringify(formData.location));
+
+         // Add suspect description if present
+         if (formData.suspectDescription) {
+            form.append("suspectDescription", formData.suspectDescription);
+         }
+
+         // Handle media files correctly
+         if (formData.media && formData.media.length > 0) {
+            formData.media.forEach((uri: string, index: number) => {
+               // Get file extension and name from URI
+               const uriParts = uri.split(".");
+               const fileExtension = uriParts[uriParts.length - 1];
+               const fileName =
+                  uri.split("/").pop() || `image_${index}.${fileExtension}`;
+
+               // Determine file type based on extension
+               const fileType =
+                  fileExtension.toLowerCase() === "png"
+                     ? "image/png"
+                     : fileExtension.toLowerCase() === "gif"
+                     ? "image/gif"
+                     : "image/jpeg";
+
+               // Create the file object correctly for React Native
+               const fileObj = {
+                  uri:
+                     Platform.OS === "android"
+                        ? uri
+                        : uri.replace("file://", ""),
+                  type: fileType,
+                  name: fileName,
+               };
+
+               // Append each file individually with the field name "media"
+               form.append("media", fileObj as any);
+            });
+         }
+
+         // Get auth token if needed
+         let token = null;
+         try {
+            token = await AsyncStorage.getItem("token");
+         } catch (e) {
+            console.log("No token available");
+         }
+
+         console.log("Making fetch request to /reports");
+
+         // Define the API URL
+         const apiUrl = "http://192.168.1.100:3000/api/v1/reports";
+
+         // Make the fetch request
+         const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+               // Don't manually set Content-Type for FormData with fetch
+               // It needs to set its own boundary
+               Accept: "application/json",
+               ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: form,
+         });
+
+         // Check if response is ok
+         if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(
+               errorData.message || `Server responded with ${response.status}`
+            );
+         }
+
+         const responseData = await response.json();
+         console.log("API response:", responseData);
+
+         // Reset form on success
+         reset();
+         setImages([]);
+         Alert.alert("Success", "Report submitted successfully!");
+      } catch (error: any) {
+         console.error("Full error:", error);
+         let errorMessage = "Failed to submit report";
+
+         if (error.message) {
+            errorMessage = error.message;
+         }
+
+         setSubmitError(errorMessage);
+         Alert.alert("Error", errorMessage);
+      } finally {
+         setIsSubmitting(false);
+      }
    };
+
+   useEffect(() => {
+      if (images.length > 0) {
+         setValue("media", images);
+      }
+   }, [images, setValue]);
 
    // New Modal Dropdown component
    const ModalDropdown = ({ value, onChange, items, placeholder }: any) => {
@@ -372,7 +514,7 @@ export default function ReportScreen() {
                   <Text style={styles.headerText}>Crime Report Form</Text>
                </View>
 
-               <Form onSubmit={handleSubmit(onSubmit)}>
+               <View>
                   <YStack space="$4" paddingBottom={50}>
                      {/* Incident Type Dropdown - Modal implementation */}
                      <View style={styles.formSection}>
@@ -431,59 +573,30 @@ export default function ReportScreen() {
                                     </Text>
                                  </Button>
 
-                                 {Platform.OS === "ios"
-                                    ? // iOS implementation
-                                      showDatePicker && (
-                                         <DateTimePicker
-                                            value={date}
-                                            mode="datetime"
-                                            display="spinner"
-                                            onChange={(event, selectedDate) => {
-                                               setShowDatePicker(false);
-                                               if (selectedDate) {
-                                                  setDate(selectedDate);
-                                                  field.onChange(selectedDate);
-                                               }
-                                            }}
-                                         />
-                                      )
-                                    : // Android implementation
-                                      showDatePicker && (
-                                         <DateTimePicker
-                                            value={date}
-                                            mode={mode}
-                                            display="default"
-                                            onChange={(event, selectedDate) => {
-                                               setShowDatePicker(false);
-                                               if (selectedDate) {
-                                                  if (mode === "date") {
-                                                     // Save the date and show time picker
-                                                     const newDate = new Date(
-                                                        selectedDate
-                                                     );
-                                                     setDate(newDate);
-                                                     // Show time picker after selecting date
-                                                     setMode("time");
-                                                     setShowDatePicker(true);
-                                                  } else {
-                                                     // After time is selected
-                                                     const newDateTime =
-                                                        new Date(date);
-                                                     newDateTime.setHours(
-                                                        selectedDate.getHours()
-                                                     );
-                                                     newDateTime.setMinutes(
-                                                        selectedDate.getMinutes()
-                                                     );
-                                                     setDate(newDateTime);
-                                                     field.onChange(
-                                                        newDateTime
-                                                     );
-                                                  }
-                                               }
-                                            }}
-                                         />
-                                      )}
+                                 {showDatePicker && (
+                                    <DateTimePicker
+                                       value={field.value || new Date()}
+                                       mode={
+                                          Platform.OS === "ios"
+                                             ? "datetime"
+                                             : mode
+                                       }
+                                       display="default"
+                                       onChange={(event, selectedDate) => {
+                                          setShowDatePicker(false);
+                                          if (selectedDate) {
+                                             if (
+                                                Platform.OS === "android" &&
+                                                mode === "date"
+                                             ) {
+                                                setMode("time");
+                                                setShowDatePicker(true);
+                                             }
+                                             field.onChange(selectedDate);
+                                          }
+                                       }}
+                                    />
+                                 )}
                                  {errors.dateTime && (
                                     <Text style={styles.errorText}>
                                        {errors.dateTime.message ||
@@ -566,15 +679,24 @@ export default function ReportScreen() {
                            <Text style={styles.label}>
                               Evidence Photos (Optional)
                            </Text>
-                           <Button
-                              style={{
-                                 ...styles.button,
-                                 backgroundColor: "#B71C1C",
-                              }}
-                              onPress={pickImage}
-                           >
-                              <Text style={styles.buttonText}>Add Photo</Text>
-                           </Button>
+                           <XStack space="$2">
+                              <Button
+                                 style={styles.button}
+                                 onPress={() => pickImage(true)}
+                              >
+                                 <Text style={styles.buttonText}>
+                                    Take Photo
+                                 </Text>
+                              </Button>
+                              <Button
+                                 style={styles.button}
+                                 onPress={() => pickImage(false)}
+                              >
+                                 <Text style={styles.buttonText}>
+                                    Choose Photos
+                                 </Text>
+                              </Button>
+                           </XStack>
                            <View style={styles.imageGrid}>
                               {images.map((uri, index) => (
                                  <Image
@@ -632,12 +754,38 @@ export default function ReportScreen() {
 
                      <Button
                         style={styles.button}
-                        onPress={handleSubmit(onSubmit)}
+                        onPress={handleSubmit((data) => {
+                           console.log("Button pressed, data:", data); // Debug log
+                           onSubmit(data);
+                        })}
+                        disabled={isSubmitting}
                      >
-                        <Text style={styles.buttonText}>SUBMIT REPORT</Text>
+                        <Text style={styles.buttonText}>
+                           {isSubmitting ? "SUBMITTING..." : "SUBMIT REPORT"}
+                        </Text>
+                     </Button>
+
+                     {submitError && (
+                        <Text
+                           style={{
+                              ...styles.errorText,
+                              textAlign: "center",
+                              marginVertical: 10,
+                           }}
+                        >
+                           {submitError}
+                        </Text>
+                     )}
+                     <Button
+                        style={styles.button}
+                        onPress={testServerConnection}
+                     >
+                        <Text style={styles.buttonText}>
+                           TEST SERVER CONNECTION
+                        </Text>
                      </Button>
                   </YStack>
-               </Form>
+               </View>
             </View>
          </ScrollView>
       </Theme>
