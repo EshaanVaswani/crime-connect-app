@@ -4,12 +4,13 @@ import {
    StyleSheet,
    TextInput,
    TouchableOpacity,
+   ActivityIndicator,
 } from "react-native";
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useContext } from "react";
-import { AuthContext } from "../_layout";
+import { useAuth } from "../_layout";
 
 export default function OTPScreen() {
    const { phone } = useLocalSearchParams();
@@ -22,6 +23,9 @@ export default function OTPScreen() {
       useRef<TextInput>(null),
    ];
    const router = useRouter();
+
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState("");
 
    useEffect(() => {
       const interval = setInterval(() => {
@@ -62,26 +66,41 @@ export default function OTPScreen() {
       }
    };
 
-   const authContext = useContext(AuthContext);
-
-   if (!authContext) {
-      throw new Error(
-         "AuthContext is null. Make sure you are using the provider correctly."
-      );
-   }
-
-   const { signIn } = authContext;
+   const { signIn } = useAuth();
 
    const handleVerify = async () => {
-      // Here you would validate OTP with your backend
-      // For demo, just save a mock token and navigate to main app
       try {
-         await signIn("demo-token");
-         // The router.replace is handled by the useEffect in _layout.js
-      } catch (e) {
-         console.error("Error signing in:", e);
+        if (otp.join("").length !== 4) {
+          alert("Please enter a valid 4-digit OTP");
+          return;
+        }
+    
+        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/auth/verify`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phone: phone,
+            otp: otp.join("")
+          }),
+        });
+    
+        const data = await response.json();
+    
+        if (!response.ok) {
+          throw new Error(data.message || "OTP verification failed");
+        }
+    
+        if (data.success && data.token) {
+          await signIn(data.token);
+          router.replace('/(tabs)');
+        }
+      } catch (error:any) {
+        console.error("Verification error:", error);
+        alert(error.message || "Verification failed. Please try again.");
       }
-   };
+    };
 
    const handleResendOTP = () => {
       // Reset timer and would call API to resend OTP
@@ -114,13 +133,19 @@ export default function OTPScreen() {
             <TouchableOpacity
                style={[
                   styles.verifyButton,
-                  otp.join("").length < 4 && styles.disabledButton,
+                  (otp.join("").length < 4 || loading) && styles.disabledButton,
                ]}
                onPress={handleVerify}
-               disabled={otp.join("").length < 4}
+               disabled={otp.join("").length < 4 || loading}
             >
-               <Text style={styles.verifyButtonText}>Verify</Text>
+               {loading ? (
+                  <ActivityIndicator color="#FFF" />
+               ) : (
+                  <Text style={styles.verifyButtonText}>Verify</Text>
+               )}
             </TouchableOpacity>
+
+            {error && <Text style={styles.errorText}>{error}</Text>}
 
             <View style={styles.resendContainer}>
                <Text style={styles.resendText}>Didn't receive code? </Text>
@@ -202,5 +227,11 @@ const styles = StyleSheet.create({
    resendActionText: {
       color: "#B71C1C",
       fontWeight: "bold",
+   },
+   errorText: {
+      color: "#FF0000",
+      fontSize: 14,
+      textAlign: "center",
+      marginTop: 10,
    },
 });

@@ -26,4 +26,13 @@ const EmergencyContactSchema = new mongoose.Schema(
    { timestamps: true }
 );
 
+EmergencyContactSchema.set("toJSON", {
+   virtuals: true,
+   versionKey: false,
+   transform: function (doc, ret) {
+     delete ret._id;
+     delete ret.user;
+   },
+ });
+
 export default mongoose.model("EmergencyContact", EmergencyContactSchema);

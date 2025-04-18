@@ -5,24 +5,68 @@ import {
    TextInput,
    TouchableOpacity,
    Image,
+   ActivityIndicator,
 } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../_layout";
 
 export default function AuthScreen() {
    const [phoneNumber, setPhoneNumber] = useState("");
-   const [countryCode, setCountryCode] = useState("+1");
+   const [countryCode, setCountryCode] = useState("+91");
+   const [loading, setLoading] = useState(false);
    const router = useRouter();
 
-   const handleSendOTP = () => {
-      // Here you would validate and make API call to send OTP
-      // For now, just navigate to OTP screen
-      router.push({
-         pathname: "/(auth)/otp",
-         params: { phone: countryCode + phoneNumber },
-      });
+   const { signIn } = useAuth();
+
+   const handleSendOTP = async () => {
+      try {
+         setLoading(true);
+         const fullPhone = countryCode + phoneNumber;
+
+         // Validate phone number format
+         if (!/^\+?\d{8,15}$/.test(fullPhone)) {
+            alert("Please enter a valid phone number");
+            return;
+         }
+
+         const response = await fetch(
+            `${process.env.EXPO_PUBLIC_API_URL}/auth/login`,
+            {
+               method: "POST",
+               headers: {
+                  "Content-Type": "application/json",
+               },
+               body: JSON.stringify({ phone: fullPhone }),
+            }
+         );
+
+         const data = await response.json();
+
+         if (!response.ok) {
+            throw new Error(data.message || "Login request failed");
+         }
+
+         if (data.success) {
+            await signIn(data.token);
+            router.replace("/(tabs)");
+         }
+      } catch (error: any) {
+         console.error("Login error:", error);
+         let errorMessage = "Login failed. Please try again.";
+
+         if (error.message.includes("Network request failed")) {
+            errorMessage = "Network error. Check your connection.";
+         } else if (error.message.includes("phone")) {
+            errorMessage = "Invalid phone number format";
+         }
+
+         alert(errorMessage);
+      } finally {
+         setLoading(false);
+      }
    };
 
    return (
@@ -33,7 +77,7 @@ export default function AuthScreen() {
                <View style={styles.logo}>
                   <Ionicons name="shield-checkmark" size={60} color="#fff" />
                </View>
-               <Text style={styles.appName}>SafeWatch</Text>
+               <Text style={styles.appName}>Crime Connect</Text>
                <Text style={styles.tagline}>
                   Report crimes, build safer communities
                </Text>
@@ -70,14 +114,18 @@ export default function AuthScreen() {
                <TouchableOpacity
                   style={[
                      styles.continueButton,
-                     phoneNumber.length < 5 && styles.disabledButton,
+                     (phoneNumber.length < 5 || loading) &&
+                        styles.disabledButton,
                   ]}
                   onPress={handleSendOTP}
-                  disabled={phoneNumber.length < 5}
+                  disabled={phoneNumber.length < 5 || loading}
                >
-                  <Text style={styles.continueButtonText}>Continue</Text>
+                  {loading ? (
+                     <ActivityIndicator color="#FFF" />
+                  ) : (
+                     <Text style={styles.continueButtonText}>Continue</Text>
+                  )}
                </TouchableOpacity>
-
                <Text style={styles.termsText}>
                   By continuing, you agree to our Terms of Service and Privacy
                   Policy

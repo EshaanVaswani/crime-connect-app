@@ -62,8 +62,8 @@ export const deleteContact = asyncHandler(async (req, res, next) => {
    if (!contact || contact.user.toString() !== req.user.id) {
       return next(new ErrorResponse("Contact not found", 404));
    }
-
-   await contact.remove();
+   
+   await EmergencyContact.findByIdAndDelete(req.params.id);
 
    // Remove from user's emergency contacts
    await User.findByIdAndUpdate(req.user.id, {

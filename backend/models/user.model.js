@@ -18,4 +18,12 @@ const UserSchema = new mongoose.Schema(
    { timestamps: true }
 );
 
+UserSchema.methods.toJSON = function () {
+   const user = this.toObject();
+   delete user.password;
+   delete user.__v;
+   delete user.updatedAt;
+   return user;
+ };
+
 export default mongoose.model("User", UserSchema);

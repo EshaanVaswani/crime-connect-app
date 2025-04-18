@@ -28,3 +28,36 @@ export const login = asyncHandler(async (req, res, next) => {
          token,
       });
 });
+
+export const verifyOTP = asyncHandler(async (req, res, next) => {
+   const { phone, otp } = req.body;
+
+   // Add your OTP validation logic here
+   const storedOTP = 1234;
+   const isValid = otp === storedOTP;
+
+   if (!isValid) {
+      return next(new ErrorResponse("Invalid OTP", 401));
+   }
+
+   const user = await User.findOne({ phone });
+   const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRES_IN,
+   });
+
+   res.status(200).json({
+      success: true,
+      token,
+   });
+});
+
+// auth.controller.js
+export const getMe = asyncHandler(async (req, res) => {
+   const user = await User.findById(req.user.id).select("phone createdAt");
+
+   res.status(200).json({
+      success: true,
+      data: user,
+   });
+});
+

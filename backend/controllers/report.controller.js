@@ -19,7 +19,7 @@ export const createReport = asyncHandler(async (req, res, next) => {
    });
 
    // Add user to req.body
-   req.body.user = "67fcf244df399e469b5d5fc7";
+   req.body.user = req.user.id;
 
    // Process media files
    const mediaUrls = [];
@@ -136,3 +136,15 @@ export const getReportsInRadius = asyncHandler(async (req, res, next) => {
       data: reports,
    });
 });
+
+export const getUserReports = asyncHandler(async (req, res, next) => {
+   const reports = await Report.find({ user: req.user.id })
+     .select("type createdAt status _id description")
+     .sort("-createdAt");
+ 
+   res.status(200).json({
+     success: true,
+     count: reports.length,
+     data: reports,
+   });
+ });

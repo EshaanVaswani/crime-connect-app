@@ -1,13 +1,11 @@
 // app/_layout.js
-import { Slot, Stack, useRouter, useSegments } from "expo-router";
+import { Slot, useRouter, useSegments } from "expo-router";
 import { TamaguiProvider } from "tamagui";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
 import config from "../tamagui.config";
-
-// Create a context provider to manage auth state
-import { createContext, Context } from "react";
+import { createContext, useContext } from "react";
 
 interface AuthContextType {
    signIn: (token: string) => Promise<void>;
@@ -15,8 +13,15 @@ interface AuthContextType {
    completeOnboarding: () => Promise<void>;
 }
 
-export const AuthContext: Context<AuthContextType | null> =
-   createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export const useAuth = () => {
+   const context = useContext(AuthContext);
+   if (!context) {
+      throw new Error("useAuth must be used within an AuthProvider");
+   }
+   return context;
+};
 
 export default function RootLayout() {
    const [isLoading, setIsLoading] = useState(true);
@@ -26,63 +31,41 @@ export default function RootLayout() {
    const segments = useSegments();
 
    useEffect(() => {
-      // Check if it's the first launch and auth status
-      async function checkStatus() {
+      const checkAuthState = async () => {
          try {
-            const hasLaunched = await AsyncStorage.getItem("hasLaunched");
-            const userToken = await AsyncStorage.getItem("userToken");
+            const [hasLaunched, userToken] = await Promise.all([
+               AsyncStorage.getItem("hasLaunched"),
+               AsyncStorage.getItem("userToken"),
+            ]);
 
-            setIsFirstLaunch(hasLaunched === null);
-            setIsAuthenticated(userToken !== null);
-            setIsLoading(false);
-         } catch (e) {
-            console.error("Error checking app status:", e);
+            setIsFirstLaunch(!hasLaunched);
+            setIsAuthenticated(!!userToken);
+         } catch (error) {
+            console.error("Auth state check failed:", error);
+         } finally {
             setIsLoading(false);
          }
-      }
+      };
 
-      checkStatus();
+      checkAuthState();
    }, []);
 
    useEffect(() => {
-      if (isLoading) return;
+      if (!isLoading) {
+         const inAuthGroup = segments[0] === "(auth)";
+         const inTabsGroup = segments[0] === "(tabs)";
 
-      const inAuthGroup = segments[0] === "(auth)";
-      const inTabsGroup = segments[0] === "(tabs)";
-
-      // Handle routing based on auth state
-      if (isAuthenticated && inAuthGroup) {
-         // Redirect to tabs if authenticated but in auth group
-         router.replace("/(tabs)");
-      } else if (!isAuthenticated && inTabsGroup) {
-         // Redirect to auth if not authenticated but in tabs group
-         if (isFirstLaunch) {
-            router.replace("/(auth)/onboarding");
-         } else {
-            router.replace("/(auth)/auth");
-         }
-      } else if (!isAuthenticated && !inAuthGroup && !isLoading) {
-         // Initial load, not in any group yet
-         if (isFirstLaunch) {
-            router.replace("/(auth)/onboarding");
-         } else {
-            router.replace("/(auth)/auth");
+         if (isAuthenticated && !inTabsGroup) {
+            router.replace("/(tabs)");
+         } else if (!isAuthenticated && !inAuthGroup) {
+            router.replace(
+               isFirstLaunch ? "/(auth)/onboarding" : "/(auth)/auth"
+            );
          }
       }
-   }, [isAuthenticated, isFirstLaunch, isLoading, segments]);
+   }, [isAuthenticated, isLoading, segments]);
 
-   // For loading state
-   if (isLoading) {
-      return (
-         <View
-            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-         >
-            <ActivityIndicator size="large" color="#B71C1C" />
-         </View>
-      );
-   }
-
-   const authContext: AuthContextType = {
+   const authContext = {
       signIn: async (token: string) => {
          await AsyncStorage.setItem("userToken", token);
          setIsAuthenticated(true);
@@ -97,11 +80,29 @@ export default function RootLayout() {
       },
    };
 
-   // Using Slot for rendering current route
    return (
       <AuthContext.Provider value={authContext}>
          <TamaguiProvider config={config}>
+            {/* Always render Slot first */}
             <Slot />
+
+            {/* Loading overlay */}
+            {isLoading && (
+               <View
+                  style={{
+                     position: "absolute",
+                     top: 0,
+                     left: 0,
+                     right: 0,
+                     bottom: 0,
+                     backgroundColor: "rgba(255,255,255,0.9)",
+                     justifyContent: "center",
+                     alignItems: "center",
+                  }}
+               >
+                  <ActivityIndicator size="large" color="#B71C1C" />
+               </View>
+            )}
          </TamaguiProvider>
       </AuthContext.Provider>
    );

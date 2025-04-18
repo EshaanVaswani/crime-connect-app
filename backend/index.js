@@ -15,12 +15,7 @@ const app = express();
 // In your server.js or app.js
 app.use(
    cors({
-      origin: [
-         "http://localhost:8081",
-         /\.exp\.direct$/, // Allow Expo direct URLs
-         /\.exp\.googlesyndication\.com$/, // Android emulator
-         "http://192.168.1.100:8081", // Add your Expo dev port
-      ],
+      origin: process.env.CORS_ORIGIN,
       credentials: true,
    })
 );
@@ -37,16 +32,24 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/emergency-contact", emergencyContactRoutes);
 app.use("/api/v1/reports", reportRoutes);
 
-app.get('/api/v1/health', (req, res) => {
-   res.status(200).json({ 
-     status: 'ok',
-     timestamp: new Date(),
-     message: 'Server is running'
+app.use((err, req, res, next) => {
+   console.error(err.stack);
+   res.status(500).json({
+      success: false,
+      error: err.message || "Server Error",
    });
- });
+});
+
+app.get("/api/v1/health", (req, res) => {
+   res.status(200).json({
+      status: "ok",
+      timestamp: new Date(),
+      message: "Server is running",
+   });
+});
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, "0.0.0.0", () =>
-   console.log(`Server accessible at http://192.168.1.100:${PORT}`)
+   console.log(`Server running on port ${PORT}`)
 );

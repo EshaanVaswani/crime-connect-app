@@ -44,8 +44,8 @@ const dummyCrimes = [
       title: "Bicycle Theft",
       type: "theft",
       coordinate: {
-         latitude: 19.2403,
-         longitude: 73.1305,
+         latitude: 19.0699,
+         longitude: 72.8374,
       },
       date: "2024-03-20 14:30",
       description: "Stolen bicycle from parking rack",
@@ -57,8 +57,8 @@ const dummyCrimes = [
       title: "Suspicious Activity",
       type: "suspicious",
       coordinate: {
-         latitude: 19.245,
-         longitude: 73.135,
+         latitude: 19.0548,
+         longitude: 72.8407,
       },
       date: "2024-04-10 20:15",
       description: "Person lurking around parked vehicles",
@@ -70,8 +70,8 @@ const dummyCrimes = [
       title: "Vandalism",
       type: "vandalism",
       coordinate: {
-         latitude: 19.238,
-         longitude: 73.1275,
+         latitude: 19.0682,
+         longitude: 72.8505,
       },
       date: "2024-04-12 08:30",
       description: "Graffiti on public building",

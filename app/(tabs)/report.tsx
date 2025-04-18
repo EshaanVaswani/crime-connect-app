@@ -258,27 +258,6 @@ export default function ReportScreen() {
       }
    };
 
-   const testServerConnection = async () => {
-      try {
-         const response = await fetch(
-            "http://192.168.1.100:3000/api/v1/health",
-            {
-               method: "GET",
-               headers: {
-                  Accept: "application/json",
-               },
-            }
-         );
-
-         const data = await response.json();
-         console.log("Server connection test response:", data);
-         Alert.alert("Connection Test", "Successfully connected to the server");
-      } catch (error: any) {
-         console.error("Connection test failed:", error);
-         Alert.alert("Connection Test Failed", error.message);
-      }
-   };
-
    const handleLocation = async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
@@ -383,7 +362,7 @@ export default function ReportScreen() {
          console.log("Making fetch request to /reports");
 
          // Define the API URL
-         const apiUrl = "http://192.168.1.100:3000/api/v1/reports";
+         const apiUrl = `${process.env.EXPO_PUBLIC_API_URL}/reports`;
 
          // Make the fetch request
          const response = await fetch(apiUrl, {
@@ -776,14 +755,6 @@ export default function ReportScreen() {
                            {submitError}
                         </Text>
                      )}
-                     <Button
-                        style={styles.button}
-                        onPress={testServerConnection}
-                     >
-                        <Text style={styles.buttonText}>
-                           TEST SERVER CONNECTION
-                        </Text>
-                     </Button>
                   </YStack>
                </View>
             </View>
