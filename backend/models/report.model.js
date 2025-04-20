@@ -4,7 +4,14 @@ const ReportSchema = new mongoose.Schema(
    {
       incidentType: {
          type: String,
-         enum: ["theft", "assault", "vandalism", "burglary", "other", "missing"],
+         enum: [
+            "theft",
+            "assault",
+            "vandalism",
+            "burglary",
+            "other",
+            "missing",
+         ],
          required: true,
       },
       dateTime: {
@@ -40,6 +47,12 @@ const ReportSchema = new mongoose.Schema(
             minlength: 10,
          },
       },
+      title: {
+         type: String,
+         required: true,
+         trim: true,
+         maxlength: 50,
+      },
       description: {
          type: String,
          required: true,
@@ -65,7 +78,6 @@ const ReportSchema = new mongoose.Schema(
       user: {
          type: mongoose.Schema.Types.ObjectId,
          ref: "User",
-         required: true,
       },
       status: {
          type: String,

@@ -31,10 +31,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import api from "../../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import getLocation from "../utils/location";
 
 // Zod validation schema
 const reportSchema = z.object({
-   incidentType: z.enum(["theft", "assault", "vandalism", "burglary", "other"]),
+   title: z.string().min(5).max(50),
+   incidentType: z.enum([
+      "theft",
+      "assault",
+      "vandalism",
+      "burglary",
+      "other",
+      "missing",
+   ]),
    dateTime: z.date().max(new Date(), "Incident can't be in future"),
    location: z.object({
       lat: z.number().optional(),
@@ -44,6 +53,7 @@ const reportSchema = z.object({
    description: z.string().min(50).max(500),
    media: z.array(z.string()).max(5).optional(),
    suspectDescription: z.string().max(200).optional(),
+   witnessDetails: z.string().max(200).optional(),
    anonymous: z.boolean().default(false),
 });
 
@@ -157,7 +167,6 @@ const styles = StyleSheet.create({
       fontSize: 14,
       color: "#9E9E9E",
    },
-   // Modal styles
    modalContainer: {
       flex: 1,
       justifyContent: "flex-end",
@@ -199,6 +208,19 @@ const styles = StyleSheet.create({
    chevronDown: {
       fontSize: 16,
       color: "#757575",
+   },
+   optionalLabel: {
+      marginBottom: 8,
+      color: "#757575",
+      fontSize: 14,
+   },
+   geminiAddress: {
+      fontSize: 14,
+      color: "#424242",
+      backgroundColor: "#F8F9FA",
+      padding: 12,
+      borderRadius: 8,
+      marginTop: 8,
    },
 });
 
@@ -270,22 +292,18 @@ export default function ReportScreen() {
 
       try {
          const location = await Location.getCurrentPositionAsync({});
-         const address = await reverseGeocode(
-            location.coords.latitude,
-            location.coords.longitude
-         );
+         const [addr] = await Promise.all([
+            getLocation(location.coords.latitude, location.coords.longitude),
+         ]);
 
          setValue("location", {
             lat: location.coords.latitude,
             lng: location.coords.longitude,
-            address:
-               address ||
-               `Near ${location.coords.latitude.toFixed(
-                  4
-               )}, ${location.coords.longitude.toFixed(4)}`,
+            address: addr,
          });
       } catch (error) {
-         Alert.alert("Location Error", "Could not get your current location.");
+         console.error("Location error:", error);
+         Alert.alert("Error", "Could not process location");
       }
    };
 
@@ -306,18 +324,21 @@ export default function ReportScreen() {
          const form = new FormData();
 
          // Append simple fields
+         form.append("title", formData.title);
          form.append("incidentType", formData.incidentType);
          form.append("dateTime", formData.dateTime.toISOString());
          form.append("description", formData.description);
          form.append("anonymous", formData.anonymous.toString());
 
-         // Convert location object to JSON string
-         form.append("location", JSON.stringify(formData.location));
-
-         // Add suspect description if present
+         if (formData.witnessDetails) {
+            form.append("witnessDetails", formData.witnessDetails);
+         }
          if (formData.suspectDescription) {
             form.append("suspectDescription", formData.suspectDescription);
          }
+
+         // Convert location object to JSON string
+         form.append("location", JSON.stringify(formData.location));
 
          // Handle media files correctly
          if (formData.media && formData.media.length > 0) {
@@ -493,6 +514,33 @@ export default function ReportScreen() {
                   <Text style={styles.headerText}>Crime Report Form</Text>
                </View>
 
+               <View style={styles.formSection}>
+                  <Controller
+                     name="title"
+                     control={control}
+                     render={({ field }) => (
+                        <YStack>
+                           <Text style={styles.label}>Title *</Text>
+                           <Input
+                              style={[
+                                 styles.input,
+                                 errors.title && { borderColor: "#D32F2F" },
+                              ]}
+                              placeholder="Brief summary (e.g., 'Bicycle theft near Central Park')"
+                              value={field.value || ""}
+                              onChangeText={field.onChange}
+                           />
+                           {errors.title && (
+                              <Text style={styles.errorText}>
+                                 {errors.title.message ||
+                                    "Title must be 5-50 characters"}
+                              </Text>
+                           )}
+                        </YStack>
+                     )}
+                  />
+               </View>
+
                <View>
                   <YStack space="$4" paddingBottom={50}>
                      {/* Incident Type Dropdown - Modal implementation */}
@@ -595,31 +643,19 @@ export default function ReportScreen() {
                            render={({ field }) => (
                               <YStack>
                                  <Text style={styles.label}>Location *</Text>
-                                 <Input
-                                    style={styles.input}
-                                    placeholder="Enter address or location description"
-                                    value={field.value}
-                                    onChangeText={field.onChange}
-                                 />
+                                 <Text style={styles.geminiAddress}>
+                                    {field.value}
+                                 </Text>
                                  <View style={{ marginTop: 10 }}>
                                     <Button
-                                       style={{
-                                          ...styles.button,
-                                          backgroundColor: "#B71C1C",
-                                       }}
+                                       style={styles.button}
                                        onPress={handleLocation}
                                     >
                                        <Text style={styles.buttonText}>
-                                          Use Current Location
+                                          Detect Current Location
                                        </Text>
                                     </Button>
                                  </View>
-                                 {errors.location?.address && (
-                                    <Text style={styles.errorText}>
-                                       {errors.location.address.message ||
-                                          "Valid location required"}
-                                    </Text>
-                                 )}
                               </YStack>
                            )}
                         />
@@ -655,9 +691,14 @@ export default function ReportScreen() {
                      {/* Image Upload */}
                      <View style={styles.formSection}>
                         <YStack>
-                           <Text style={styles.label}>
+                           <Text style={styles.optionalLabel}>
                               Evidence Photos (Optional)
                            </Text>
+                           {images.length >= 5 && (
+                              <Text style={styles.errorText}>
+                                 Maximum 5 photos allowed
+                              </Text>
+                           )}
                            <XStack space="$2">
                               <Button
                                  style={styles.button}
@@ -686,6 +727,58 @@ export default function ReportScreen() {
                               ))}
                            </View>
                         </YStack>
+                     </View>
+
+                     {/* Witness Details */}
+                     <View style={styles.formSection}>
+                        <Controller
+                           name="witnessDetails"
+                           control={control}
+                           render={({ field }) => (
+                              <YStack>
+                                 <Text style={styles.optionalLabel}>
+                                    Witness Information (Optional)
+                                 </Text>
+                                 <TextArea
+                                    style={styles.input}
+                                    placeholder="Describe any witnesses (appearance, contact info, etc.)"
+                                    value={field.value || ""}
+                                    onChangeText={field.onChange}
+                                 />
+                                 {errors.witnessDetails && (
+                                    <Text style={styles.errorText}>
+                                       Maximum 200 characters
+                                    </Text>
+                                 )}
+                              </YStack>
+                           )}
+                        />
+                     </View>
+
+                     {/* Suspect Description */}
+                     <View style={styles.formSection}>
+                        <Controller
+                           name="suspectDescription"
+                           control={control}
+                           render={({ field }) => (
+                              <YStack>
+                                 <Text style={styles.optionalLabel}>
+                                    Suspect Description (Optional)
+                                 </Text>
+                                 <TextArea
+                                    style={styles.input}
+                                    placeholder="Describe the suspect (appearance, clothing, etc.)"
+                                    value={field.value || ""}
+                                    onChangeText={field.onChange}
+                                 />
+                                 {errors.suspectDescription && (
+                                    <Text style={styles.errorText}>
+                                       Maximum 200 characters
+                                    </Text>
+                                 )}
+                              </YStack>
+                           )}
+                        />
                      </View>
 
                      {/* Anonymous Checkbox Section */}

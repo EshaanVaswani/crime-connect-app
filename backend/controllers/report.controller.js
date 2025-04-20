@@ -6,35 +6,13 @@ import fs from "fs";
 // @desc    Create new report
 // @route   POST /api/v1/reports
 export const createReport = asyncHandler(async (req, res, next) => {
-   console.log("Full request:", {
-      body: req.body,
-      files: req.files,
-      headers: req.headers,
-   });
-
-   console.log("Cloudinary Config:", {
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY?.slice(0, 4) + "...", // Partial reveal
-      api_secret: process.env.CLOUDINARY_API_SECRET?.slice(0, 4) + "...",
-   });
-
-   // Add user to req.body
    req.body.user = req.user.id;
 
-   // Process media files
    const mediaUrls = [];
-   // In your createReport controller
+
    if (req.files && req.files.length > 0) {
       for (const file of req.files) {
          try {
-            // Add file verification
-            console.log("File metadata:", {
-               size: file.size,
-               mimetype: file.mimetype,
-               path: file.path,
-               exists: fs.existsSync(file.path),
-            });
-
             const cloudinaryResponse = await uploadOnCloudinary(file.path);
 
             if (!cloudinaryResponse) {
@@ -82,11 +60,14 @@ export const createReport = asyncHandler(async (req, res, next) => {
 
    // Create report with correctly processed data
    const reportData = {
+      title: req.body.title,
       incidentType: req.body.incidentType,
       dateTime: new Date(req.body.dateTime),
       description: req.body.description,
+      suspectDescription: req.body.suspectDescription || "", 
+      witnessDetails: req.body.witnessDetails || "", 
       anonymous: req.body.anonymous === "true",
-      user: req.body.user,
+      user: req.body.anonymous === "true" ? null : req.body.user,
       media: mediaUrls,
       location: location,
    };
@@ -137,14 +118,34 @@ export const getReportsInRadius = asyncHandler(async (req, res, next) => {
    });
 });
 
+// @desc    Get reports by user
+// @route   GET /api/v1/reports/user
 export const getUserReports = asyncHandler(async (req, res, next) => {
    const reports = await Report.find({ user: req.user.id })
-     .select("type createdAt status _id description")
-     .sort("-createdAt");
- 
+      .select("type createdAt status _id description title")
+      .sort("-createdAt");
+
    res.status(200).json({
-     success: true,
-     count: reports.length,
-     data: reports,
+      success: true,
+      count: reports.length,
+      data: reports,
    });
- });
+});
+
+// @desc    Get report by ID
+// @route   GET /api/v1/reports/:id
+export const getReportById = asyncHandler(async (req, res, next) => {
+   const report = await Report.findById(req.params.id).populate(
+      "user",
+      "phone"
+   );
+
+   if (!report) {
+      return next(new Error("Report not found"));
+   }
+
+   res.status(200).json({
+      success: true,
+      data: report,
+   });
+});

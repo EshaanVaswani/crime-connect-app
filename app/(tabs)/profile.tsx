@@ -15,11 +15,14 @@ import {
    TouchableOpacity,
    Modal,
    TextInput,
+   Linking,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useAuth } from "../_layout";
+import { useAuth } from "../contexts/auth-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
+import { Report } from "@/app/types/types";
+import { useRouter } from "expo-router";
 
 const styles = StyleSheet.create({
    container: {
@@ -71,9 +74,14 @@ const styles = StyleSheet.create({
       borderBottomColor: "#EEEEEE",
    },
    incidentItem: {
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: "#EEEEEE",
+      backgroundColor: "white",
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      borderLeftWidth: 4,
+      borderLeftColor: "#e0e0e0",
+      borderWidth: 1,
+      borderColor: "#B71C1C",
    },
    phoneNumber: {
       fontSize: 20,
@@ -126,12 +134,15 @@ const styles = StyleSheet.create({
       marginTop: 8,
    },
    statusBadge: {
-      borderRadius: 8,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
+      borderRadius: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
+      backgroundColor: "#FFF",
+      borderWidth: 1,
+      borderColor: "#E0E0E0",
    },
    incidentDescription: {
       color: "#424242",
@@ -139,13 +150,21 @@ const styles = StyleSheet.create({
       lineHeight: 20,
       marginTop: 4,
    },
-   floatingButton: {
-      position: "absolute",
-      bottom: 24,
-      right: 24,
-      borderRadius: 30,
-      padding: 16,
-      elevation: 4,
+   incidentTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: "#2D2D2D",
+      textTransform: "capitalize",
+   },
+   incidentSubtitle: {
+      fontSize: 14,
+      color: "#757575",
+      marginTop: 2,
+   },
+   incidentDate: {
+      fontSize: 12,
+      color: "#9E9E9E",
+      fontStyle: "italic",
    },
 });
 
@@ -156,20 +175,13 @@ interface EmergencyContact {
 }
 
 const ProfileScreen = () => {
+   const router = useRouter();
    const { signOut } = useAuth();
    const [showAddContactModal, setShowAddContactModal] = useState(false);
    const [newContact, setNewContact] = useState({ name: "", phone: "" });
    const [addLoading, setAddLoading] = useState(false);
 
-   const [reportedIncidents, setReportedIncidents] = useState<
-      Array<{
-         _id: string;
-         type: string;
-         createdAt: string;
-         status: string;
-         description: string;
-      }>
-   >([]);
+   const [reportedIncidents, setReportedIncidents] = useState<Report[]>([]);
    const [loadingIncidents, setLoadingIncidents] = useState(true);
 
    const [userData, setUserData] = useState<{
@@ -215,6 +227,7 @@ const ProfileScreen = () => {
                   headers: { Authorization: `Bearer ${token}` },
                }
             );
+
             if (!incidentsRes.ok) throw new Error("Failed to fetch incidents");
             setReportedIncidents((await incidentsRes.json()).data);
          } catch (error: any) {
@@ -345,11 +358,18 @@ const ProfileScreen = () => {
                         alignItems="center"
                         space="$2"
                      >
-                        <MaterialCommunityIcons
-                           name="account-alert"
-                           size={24}
-                           color="#B71C1C"
-                        />
+                        <TouchableOpacity
+                           onPress={() =>
+                              Linking.openURL(`tel:${contact.phone}`)
+                           }
+                        >
+                           <MaterialCommunityIcons
+                              name="phone-outline"
+                              size={24}
+                              color="#B71C1C"
+                           />
+                        </TouchableOpacity>
+
                         <YStack flex={1}>
                            <Text style={[styles.value, { fontWeight: "600" }]}>
                               {contact.name}
@@ -358,14 +378,9 @@ const ProfileScreen = () => {
                               {contact.phone}
                            </Text>
                         </YStack>
+
                         <TouchableOpacity
                            onPress={() => handleDeleteContact(contact.id)}
-                           hitSlop={{
-                              top: 15,
-                              bottom: 15,
-                              left: 15,
-                              right: 15,
-                           }}
                         >
                            <MaterialCommunityIcons
                               name="delete-outline"
@@ -387,6 +402,22 @@ const ProfileScreen = () => {
                      </Text>
                   </YStack>
                )}
+
+               <Button
+                  marginTop={12}
+                  backgroundColor="#B71C1C"
+                  color="white"
+                  onPress={() => setShowAddContactModal(true)}
+                  icon={
+                     <MaterialCommunityIcons
+                        name="plus"
+                        size={20}
+                        color="white"
+                     />
+                  }
+               >
+                  Add Emergency Contact
+               </Button>
             </YStack>
 
             {/* Reported Incidents */}
@@ -402,72 +433,100 @@ const ProfileScreen = () => {
                   <ActivityIndicator size="small" color="#B71C1C" />
                ) : reportedIncidents.length > 0 ? (
                   reportedIncidents.map((incident) => (
-                     <YStack
+                     <TouchableOpacity
                         key={`incident-${incident._id}`}
-                        style={styles.incidentItem}
-                        space="$2"
+                        onPress={() =>
+                           router.push({
+                              pathname: "/(screens)/report-details",
+                              params: { reportId: incident._id },
+                           })
+                        }
+                        style={{ marginBottom: 8 }}
                      >
-                        <XStack
-                           justifyContent="space-between"
-                           alignItems="center"
-                        >
-                           <YStack flex={1}>
-                              <Text
-                                 style={[styles.value, { fontWeight: "600" }]}
-                              >
-                                 {incident.type}
-                              </Text>
-                              <Text
-                                 style={styles.incidentDescription}
-                                 numberOfLines={2}
-                              >
-                                 {incident.description}
-                              </Text>
-                           </YStack>
-                           <YStack
-                              style={[
-                                 styles.statusBadge,
-                                 {
-                                    backgroundColor:
-                                       incident.status === "Case Closed"
-                                          ? "#E8F5E9"
-                                          : "#FFEBEE",
-                                 },
-                              ]}
+                        <YStack style={styles.incidentItem} space="$2">
+                           <XStack
+                              justifyContent="space-between"
+                              alignItems="center"
                            >
-                              <MaterialCommunityIcons
-                                 name={
-                                    incident.status === "Case Closed"
-                                       ? "check-circle-outline"
-                                       : "clock-alert-outline"
-                                 }
-                                 size={16}
-                                 color={
-                                    incident.status === "Case Closed"
-                                       ? "#388E3C"
-                                       : "#B71C1C"
-                                 }
-                              />
-                              <Text
+                              <YStack flex={1} gap={4}>
+                                 <Text style={styles.incidentTitle}>
+                                    {incident.incidentType}
+                                 </Text>
+                                 <Text style={styles.incidentSubtitle}>
+                                    {incident.title}
+                                 </Text>
+                              </YStack>
+                              <YStack
                                  style={[
-                                    styles.value,
+                                    styles.statusBadge,
                                     {
-                                       color:
-                                          incident.status === "Case Closed"
-                                             ? "#388E3C"
-                                             : "#B71C1C",
+                                       backgroundColor:
+                                          incident.status === "pending"
+                                             ? "#FFF3E0"
+                                             : "#E8F5E9",
+                                       borderColor:
+                                          incident.status === "pending"
+                                             ? "#B71C1C"
+                                             : "#388E3C",
                                     },
                                  ]}
                               >
-                                 {incident.status}
+                                 <MaterialCommunityIcons
+                                    name={
+                                       incident.status === "pending"
+                                          ? "clock-alert"
+                                          : "check-circle"
+                                    }
+                                    size={16}
+                                    color={
+                                       incident.status === "pending"
+                                          ? "#B71C1C"
+                                          : "#388E3C"
+                                    }
+                                 />
+                                 <Text
+                                    style={{
+                                       fontSize: 12,
+                                       fontWeight: "600",
+                                       color:
+                                          incident.status === "pending"
+                                             ? "#B71C1C"
+                                             : "#388E3C",
+                                       textTransform: "capitalize",
+                                    }}
+                                 >
+                                    {incident.status}
+                                 </Text>
+                              </YStack>
+                           </XStack>
+
+                           {/* Add divider */}
+                           <View
+                              style={{
+                                 height: 1,
+                                 backgroundColor: "#EEE",
+                                 marginVertical: 8,
+                              }}
+                           />
+
+                           <XStack
+                              justifyContent="space-between"
+                              alignItems="center"
+                           >
+                              <Text style={styles.incidentDate}>
+                                 Reported on{" "}
+                                 {new Date(
+                                    incident.createdAt
+                                 ).toLocaleDateString()}
                               </Text>
-                           </YStack>
-                        </XStack>
-                        <Text style={[styles.label, { marginTop: 4 }]}>
-                           Reported on{" "}
-                           {new Date(incident.createdAt).toLocaleDateString()}
-                        </Text>
-                     </YStack>
+                              <MaterialCommunityIcons
+                                 name="chevron-right"
+                                 size={20}
+                                 color="#B71C1C"
+                              />
+                           </XStack>
+                        </YStack>
+                     </TouchableOpacity>
                   ))
                ) : (
                   <YStack style={styles.emptyState}>
@@ -482,14 +541,6 @@ const ProfileScreen = () => {
                   </YStack>
                )}
             </YStack>
-
-            {/* Floating Action Button */}
-            <TouchableOpacity
-               style={[styles.floatingButton, { backgroundColor: "#B71C1C" }]}
-               onPress={() => setShowAddContactModal(true)}
-            >
-               <MaterialCommunityIcons name="plus" size={24} color="white" />
-            </TouchableOpacity>
 
             {/* Add Contact Modal */}
             <Modal
