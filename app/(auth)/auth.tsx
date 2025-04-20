@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "../_layout";
+import { useAuth } from "../contexts/auth-context";
 
 export default function AuthScreen() {
    const [phoneNumber, setPhoneNumber] = useState("");

@@ -10,7 +10,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useContext } from "react";
-import { useAuth } from "../_layout";
+import { useAuth } from "../contexts/auth-context";
 
 export default function OTPScreen() {
    const { phone } = useLocalSearchParams();
