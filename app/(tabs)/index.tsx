@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { formatDistanceToNow } from "date-fns";
 import {
    View,
    Modal,
@@ -7,6 +8,8 @@ import {
    Linking,
    TouchableOpacity,
    Platform,
+   ActivityIndicator,
+   RefreshControl,
 } from "react-native";
 import MapView, { MapType, Marker } from "react-native-maps";
 import {
@@ -23,72 +26,15 @@ import * as Location from "expo-location";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as SMS from "expo-sms";
 import { router } from "expo-router";
+import { MarkerColors, Report, SeverityColors } from "../types/types";
+import debounce from "../utils/debounce";
 
-type Crime = {
-   id: number;
-   title: string;
-   type: string;
-   coordinate: {
-      latitude: number;
-      longitude: number;
-   };
-   date: string;
-   description: string;
-   status: string;
-   reporter: string;
-};
-
-const dummyCrimes = [
-   {
-      id: 1,
-      title: "Bicycle Theft",
-      type: "theft",
-      coordinate: {
-         latitude: 19.0699,
-         longitude: 72.8374,
-      },
-      date: "2024-03-20 14:30",
-      description: "Stolen bicycle from parking rack",
-      status: "Under Investigation",
-      reporter: "Anonymous",
-   },
-   {
-      id: 2,
-      title: "Suspicious Activity",
-      type: "suspicious",
-      coordinate: {
-         latitude: 19.0548,
-         longitude: 72.8407,
-      },
-      date: "2024-04-10 20:15",
-      description: "Person lurking around parked vehicles",
-      status: "Reported",
-      reporter: "John D.",
-   },
-   {
-      id: 3,
-      title: "Vandalism",
-      type: "vandalism",
-      coordinate: {
-         latitude: 19.0682,
-         longitude: 72.8505,
-      },
-      date: "2024-04-12 08:30",
-      description: "Graffiti on public building",
-      status: "Under Investigation",
-      reporter: "Community Watch",
-   },
-];
-
-// Emergency numbers
 const emergencyContacts = [
    { id: 1, name: "Police", number: "100" },
    { id: 2, name: "Fire", number: "101" },
    { id: 3, name: "Ambulance", number: "102" },
    { id: 4, name: "Women Helpline", number: "1091" },
 ];
-
-// Recent alerts to display in the quick panel
 const recentAlerts = [
    {
       id: 1,
@@ -117,12 +63,32 @@ export default function HomeScreen() {
       latitudeDelta: number;
       longitudeDelta: number;
    } | null>(null);
-   const [selectedCrime, setSelectedCrime] = useState<Crime | null>(null);
+   const [selectedCrime, setSelectedCrime] = useState<Report | null>(null);
    const [locationError, setLocationError] = useState(false);
    const [isSosActive, setIsSosActive] = useState(false);
    const [sosCountdown, setSosCountdown] = useState(5);
    const [showQuickPanel, setShowQuickPanel] = useState(false);
    const [mapType, setMapType] = useState<MapType>("standard");
+   const [crimes, setCrimes] = useState<Report[]>([]);
+   const [loadingCrimes, setLoadingCrimes] = useState(true);
+   const [error, setError] = useState<string | null>(null);
+   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
+   const [crimeCache, setCrimeCache] = useState<{ [key: string]: Report[] }>(
+      {}
+   );
+   const [recentAlerts, setRecentAlerts] = useState<Report[] | null>([]);
+   const [loadingRecentAlerts, setLoadingRecentAlerts] = useState(true);
+
+   const debouncedRegionHandler = useMemo(
+      () =>
+         debounce((newRegion: typeof region) => {
+            if (newRegion) {
+               setRegion(newRegion);
+               fetchCrimes(newRegion);
+            }
+         }, 1000),
+      []
+   );
 
    // Get user location
    useEffect(() => {
@@ -141,6 +107,81 @@ export default function HomeScreen() {
             longitudeDelta: 0.0421,
          });
       })();
+   }, []);
+
+   const fetchCrimes = useCallback(
+      async (currentRegion: typeof region) => {
+         if (!currentRegion) return;
+
+         try {
+            setLoadingCrimes(true);
+            const cacheKey = `${currentRegion.latitude.toFixed(
+               4
+            )}-${currentRegion.longitude.toFixed(4)}`;
+
+            const response = await fetch(
+               `${process.env.EXPO_PUBLIC_API_URL}/reports/radius/${currentRegion.latitude}/${currentRegion.longitude}/5`
+            );
+
+            if (!response.ok) throw new Error("Failed to fetch crimes");
+
+            const data = await response.json();
+
+            // Filter out invalid reports and map safely
+            const validReports = data.data.filter(
+               (report: Report) => report.location?.coordinates?.length === 2
+            );
+
+            const newCrimes = validReports.map((report: Report) => ({
+               ...report,
+               coordinate: {
+                  latitude: report.location.coordinates[1],
+                  longitude: report.location.coordinates[0],
+               },
+               date: new Date(report.createdAt).toLocaleString(),
+               reporter: report.anonymous
+                  ? "Anonymous"
+                  : report.user?.phone || "Unknown",
+            }));
+
+            setCrimeCache((prev) => ({ ...prev, [cacheKey]: newCrimes }));
+            setCrimes((prev) =>
+               JSON.stringify(prev) === JSON.stringify(newCrimes)
+                  ? prev
+                  : newCrimes
+            );
+         } catch (err: any) {
+            setError(err.message);
+            console.error("Error fetching crimes:", err);
+         } finally {
+            setLoadingCrimes(false);
+         }
+      },
+      [crimeCache]
+   );
+
+   useEffect(() => {
+      if (!region) return;
+
+      fetchCrimes(region);
+   }, [region]);
+
+   const fetchRecentAlerts = async () => {
+      try {
+         const response = await fetch(
+            `${process.env.EXPO_PUBLIC_API_URL}/reports/recent?limit=3`
+         );
+         const data = await response.json();
+         setRecentAlerts(data.data);
+      } catch (err) {
+         console.error("Error fetching recent alerts:", err);
+      } finally {
+         setLoadingRecentAlerts(false);
+      }
+   };
+
+   useEffect(() => {
+      fetchRecentAlerts();
    }, []);
 
    // SOS countdown effect
@@ -177,6 +218,21 @@ export default function HomeScreen() {
       );
    };
 
+   const getAlertIcon = (type: string) => {
+      switch (type) {
+         case "theft":
+            return "bag-personal";
+         case "assault":
+            return "police-badge";
+         case "burglary":
+            return "home-alert";
+         case "missing":
+            return "account-alert";
+         default:
+            return "alert-circle";
+      }
+   };
+
    // Send emergency SOS
    const sendEmergencySOS = async () => {
       const isAvailable = await SMS.isAvailableAsync();
@@ -186,7 +242,7 @@ export default function HomeScreen() {
             [emergencyContacts[0].number],
             `EMERGENCY: Need immediate assistance at my location. ${
                region
-                  ? `Lat: ${region.latitude}, Long: ${region.longitude}`
+                  ? `https://www.google.com/maps?q=${region.latitude},${region.longitude}`
                   : ""
             }`
          );
@@ -205,32 +261,68 @@ export default function HomeScreen() {
       setShowQuickPanel(false);
    };
 
+   const handleRefresh = useCallback(async () => {
+      const now = Date.now();
+      if (now - lastRefreshTime < 30000) {
+         Alert.alert("Please wait", "You can refresh once every 30 seconds");
+         return;
+      }
+
+      setLastRefreshTime(now);
+      try {
+         setLoadingCrimes(true);
+         setLoadingRecentAlerts(true);
+         await Promise.all([fetchCrimes(region), fetchRecentAlerts()]);
+      } catch (err: any) {
+         setError(err.message);
+      } finally {
+         setLoadingCrimes(false);
+         setLoadingRecentAlerts(false);
+      }
+   }, [lastRefreshTime, region]);
+
    // Marker color based on crime type
-   interface MarkerColors {
-      theft: string;
-      assault: string;
-      suspicious: string;
-      vandalism: string;
-      default: string;
-   }
 
    const getMarkerColor = (type: keyof MarkerColors): string => {
       const colors: MarkerColors = {
-         theft: "#B71C1C",
-         assault: "#D32F2F",
-         suspicious: "#FFA000",
-         vandalism: "#7B1FA2",
-         default: "#B71C1C",
+         theft: "#FF0000",
+         assault: "#FF8C00",
+         burglary: "#FFD700",
+         vandalism: "#8A2BE2",
+         missing: "#1E90FF",
+         other: "#32CD32",
+         default: "#808080",
       };
       return colors[type] || colors.default;
    };
 
-   interface SeverityColors {
-      low: string;
-      medium: string;
-      high: string;
-      [key: string]: string;
-   }
+   const renderCrimeMarkers = useMemo(
+      () =>
+         crimes
+            .filter((crime) => crime.location?.coordinates?.length === 2)
+            .map((crime) => {
+               const [longitude, latitude] = crime.location.coordinates;
+               return (
+                  <Marker
+                     key={crime._id}
+                     coordinate={{
+                        latitude,
+                        longitude,
+                     }}
+                     onPress={() => setSelectedCrime(crime)}
+                  >
+                     <MaterialCommunityIcons
+                        name="alert-circle"
+                        size={32}
+                        color={getMarkerColor(
+                           crime.incidentType as keyof MarkerColors
+                        )}
+                     />
+                  </Marker>
+               );
+            }),
+      [crimes]
+   );
 
    const getSeverityColor = (severity: keyof SeverityColors): string => {
       const colors: SeverityColors = {
@@ -255,6 +347,217 @@ export default function HomeScreen() {
       }
    };
 
+   const renderQuickPanel = useMemo(
+      () =>
+         showQuickPanel && (
+            <ScrollView style={styles.quickPanel}>
+               <YStack space="$3" padding="$3">
+                  {/* Header */}
+                  <XStack alignItems="center" justifyContent="space-between">
+                     <Text fontSize="$6" color="#000" fontWeight="800">
+                        QUICK ACCESS
+                     </Text>
+                     <TouchableOpacity
+                        onPress={() => setShowQuickPanel(false)}
+                        hitSlop={10}
+                     >
+                        <MaterialCommunityIcons
+                           name="close"
+                           size={24}
+                           color="#000"
+                        />
+                     </TouchableOpacity>
+                  </XStack>
+
+                  {/* Recent Alerts */}
+                  <YStack space="$2">
+                     <Text fontSize="$5" color="#000" fontWeight="700">
+                        Recent Alerts
+                     </Text>
+                     {loadingRecentAlerts ? (
+                        <ActivityIndicator color="#B71C1C" />
+                     ) : recentAlerts?.length === 0 ? (
+                        <Card backgroundColor="#FFF5F5" padding="$3" bordered>
+                           <Text color="#000" opacity={0.8}>
+                              No recent alerts
+                           </Text>
+                        </Card>
+                     ) : (
+                        <YStack space="$2">
+                           {recentAlerts?.map((alert) => (
+                              <Card
+                                 key={alert._id}
+                                 backgroundColor="white"
+                                 borderColor="#FFEBEE"
+                                 borderWidth={2}
+                                 padding="$3"
+                              >
+                                 <XStack alignItems="center" space="$2">
+                                    <MaterialCommunityIcons
+                                       name={getAlertIcon(alert.incidentType)}
+                                       size={20}
+                                       color="#B71C1C"
+                                    />
+                                    <YStack>
+                                       <Text color="#000" fontWeight="600">
+                                          {alert.title}
+                                       </Text>
+                                       <Text color="#000" fontSize="$1">
+                                          {formatDistanceToNow(
+                                             new Date(alert.createdAt)
+                                          )}{" "}
+                                          ago
+                                       </Text>
+                                    </YStack>
+                                 </XStack>
+                              </Card>
+                           ))}
+                        </YStack>
+                     )}
+                  </YStack>
+
+                  {/* Emergency Contacts */}
+                  <YStack space="$2">
+                     <Text fontSize="$5" color="#000" fontWeight="700">
+                        Emergency Contacts
+                     </Text>
+                     <YStack space="$2">
+                        {emergencyContacts.map((contact) => (
+                           <TouchableOpacity
+                              key={contact.id}
+                              onPress={() => callEmergency(contact.number)}
+                           >
+                              <Card
+                                 backgroundColor="white"
+                                 borderColor="#FFEBEE"
+                                 borderWidth={2}
+                                 padding="$3"
+                              >
+                                 <XStack
+                                    alignItems="center"
+                                    justifyContent="space-between"
+                                 >
+                                    <Text color="#000" fontWeight="600">
+                                       {contact.name}
+                                    </Text>
+                                    <XStack alignItems="center" space="$2">
+                                       <Text color="#000">
+                                          {contact.number}
+                                       </Text>
+                                       <MaterialCommunityIcons
+                                          name="phone"
+                                          size={20}
+                                          color="#B71C1C"
+                                       />
+                                    </XStack>
+                                 </XStack>
+                              </Card>
+                           </TouchableOpacity>
+                        ))}
+                     </YStack>
+                  </YStack>
+               </YStack>
+            </ScrollView>
+         ),
+      [showQuickPanel, recentAlerts, loadingRecentAlerts]
+   );
+
+   const renderModalContent = useMemo(
+      () => (
+         <YStack space="$4">
+            <XStack alignItems="center" space="$3">
+               <MaterialCommunityIcons
+                  name={getAlertIcon(selectedCrime?.incidentType || "")}
+                  size={24}
+                  color="#B71C1C"
+               />
+               <Text fontSize={20} fontWeight="bold" color="#B71C1C">
+                  {selectedCrime?.title}
+               </Text>
+            </XStack>
+
+            <YStack space="$2">
+               <XStack alignItems="center" space="$2">
+                  <MaterialCommunityIcons
+                     name="shape"
+                     size={16}
+                     color="$gray10"
+                  />
+                  <Text fontSize={14} color="$gray10">
+                     Incident Type:
+                  </Text>
+                  <Text fontSize={14} color="$gray12">
+                     {selectedCrime?.incidentType || "Unknown"}
+                  </Text>
+               </XStack>
+
+               <XStack alignItems="center" space="$2">
+                  <MaterialCommunityIcons
+                     name="clock"
+                     size={16}
+                     color="$gray10"
+                  />
+                  <Text fontSize={14} color="$gray10">
+                     Reported:
+                  </Text>
+                  <Text fontSize={14} color="$gray12">
+                     {selectedCrime?.dateTime
+                        ? `${formatDistanceToNow(
+                             new Date(selectedCrime.dateTime)
+                          )} ago`
+                        : "Unknown time"}
+                  </Text>
+               </XStack>
+
+               <XStack alignItems="center" space="$2">
+                  <MaterialCommunityIcons
+                     name="map-marker"
+                     size={16}
+                     color="$gray10"
+                  />
+                  <Text fontSize={14} color="$gray10">
+                     Status:
+                  </Text>
+                  <View
+                     style={[
+                        styles.statusBadge,
+                        {
+                           backgroundColor: getSeverityColor(
+                              selectedCrime?.status === "resolved"
+                                 ? "low"
+                                 : "high"
+                           ),
+                        },
+                     ]}
+                  >
+                     <Text
+                        fontSize={12}
+                        color="white"
+                        textTransform="capitalize"
+                     >
+                        {selectedCrime?.status}
+                     </Text>
+                  </View>
+               </XStack>
+            </YStack>
+
+            {selectedCrime?.description && (
+               <YStack space="$2">
+                  <Text fontSize={14} fontWeight="500" color="$gray10">
+                     Description
+                  </Text>
+                  <Text fontSize={14} color="$gray12">
+                     {selectedCrime.description}
+                  </Text>
+               </YStack>
+            )}
+
+            {/* Add similar improvements for other sections */}
+         </YStack>
+      ),
+      [selectedCrime]
+   );
+
    if (locationError) {
       return (
          <YStack
@@ -273,6 +576,34 @@ export default function HomeScreen() {
       );
    }
 
+   if (loadingCrimes) {
+      return (
+         <YStack flex={1} justifyContent="center" alignItems="center">
+            <ActivityIndicator size="large" color="#B71C1C" />
+            <Text marginTop="$2">Loading crime reports...</Text>
+         </YStack>
+      );
+   }
+
+   if (error) {
+      return (
+         <YStack
+            flex={1}
+            justifyContent="center"
+            alignItems="center"
+            padding="$4"
+         >
+            <Text color="#B71C1C" marginBottom="$2">
+               Error loading crime data
+            </Text>
+            <Text textAlign="center" marginBottom="$4">
+               {error}
+            </Text>
+            <Button onPress={() => setError(null)}>Retry</Button>
+         </YStack>
+      );
+   }
+
    return (
       <Theme name="light">
          <View style={styles.container}>
@@ -283,23 +614,9 @@ export default function HomeScreen() {
                   initialRegion={region}
                   mapType={mapType}
                   showsUserLocation={true}
+                  onRegionChangeComplete={debouncedRegionHandler}
                >
-                  {/* Crime Markers */}
-                  {dummyCrimes.map((crime) => (
-                     <Marker
-                        key={crime.id}
-                        coordinate={crime.coordinate}
-                        onPress={() => setSelectedCrime(crime)}
-                     >
-                        <MaterialCommunityIcons
-                           name="alert-circle"
-                           size={32}
-                           color={getMarkerColor(
-                              crime.type as keyof MarkerColors
-                           )}
-                        />
-                     </Marker>
-                  ))}
+                  {renderCrimeMarkers}
                </MapView>
             ) : (
                <YStack flex={1} justifyContent="center" alignItems="center">
@@ -338,70 +655,8 @@ export default function HomeScreen() {
                </XStack>
             </View>
 
-            {/* Quick Panel Slide-in */}
-            {showQuickPanel && (
-               <View style={styles.quickPanel}>
-                  <YStack space="$3" padding="$3">
-                     <Text fontSize={18} fontWeight="bold">
-                        Recent Alerts
-                     </Text>
-                     {recentAlerts.map((alert) => (
-                        <Card key={alert.id} padding="$2" bordered>
-                           <XStack
-                              justifyContent="space-between"
-                              alignItems="center"
-                           >
-                              <YStack>
-                                 <Text fontWeight="500">{alert.title}</Text>
-                                 <Text fontSize={12} color="#757575">
-                                    {alert.time}
-                                 </Text>
-                              </YStack>
-                              <View
-                                 style={[
-                                    styles.severityIndicator,
-                                    {
-                                       backgroundColor: getSeverityColor(
-                                          alert.severity
-                                       ),
-                                    },
-                                 ]}
-                              />
-                           </XStack>
-                        </Card>
-                     ))}
-
-                     <Text fontSize={18} fontWeight="bold" marginTop="$2">
-                        Emergency Services
-                     </Text>
-                     {emergencyContacts.map((contact) => (
-                        <TouchableOpacity
-                           key={contact.id}
-                           onPress={() => callEmergency(contact.number)}
-                        >
-                           <Card padding="$2" bordered>
-                              <XStack
-                                 justifyContent="space-between"
-                                 alignItems="center"
-                              >
-                                 <Text>{contact.name}</Text>
-                                 <XStack alignItems="center" space="$1">
-                                    <Text color="#757575">
-                                       {contact.number}
-                                    </Text>
-                                    <MaterialCommunityIcons
-                                       name="phone"
-                                       size={20}
-                                       color="#4CAF50"
-                                    />
-                                 </XStack>
-                              </XStack>
-                           </Card>
-                        </TouchableOpacity>
-                     ))}
-                  </YStack>
-               </View>
-            )}
+            {/* Quick Panel */}
+            {renderQuickPanel}
 
             {/* Bottom Action Buttons */}
             <View style={styles.bottomActions}>
@@ -443,74 +698,28 @@ export default function HomeScreen() {
             >
                <View style={styles.modalOverlay}>
                   <Card style={styles.modalContent}>
-                     <ScrollView>
-                        <YStack space="$3">
-                           <Text
-                              fontSize={20}
-                              fontWeight="bold"
-                              color="#B71C1C"
-                           >
-                              {selectedCrime?.title}
-                           </Text>
-
-                           <YStack>
-                              <Text width={100} color="#757575">
-                                 Type:
-                              </Text>
-                              <Text color="#424242">{selectedCrime?.type}</Text>
-                           </YStack>
-
-                           <YStack>
-                              <Text width={100} color="#757575">
-                                 Date:
-                              </Text>
-                              <Text color="#424242">{selectedCrime?.date}</Text>
-                           </YStack>
-
-                           <YStack>
-                              <Text width={100} color="#757575">
-                                 Status:
-                              </Text>
-                              <Text color="#B71C1C">
-                                 {selectedCrime?.status}
-                              </Text>
-                           </YStack>
-
-                           <YStack>
-                              <Text color="#757575">Description:</Text>
-                              <Text color="#424242">
-                                 {selectedCrime?.description}
-                              </Text>
-                           </YStack>
-
-                           <XStack space="$2" marginTop={16}>
-                              <Button
-                                 flex={1}
-                                 theme="active"
-                                 onPress={() => setSelectedCrime(null)}
-                              >
-                                 Close
-                              </Button>
-                              <Button
-                                 flex={1}
-                                 backgroundColor="#4CAF50"
-                                 onPress={() => {
-                                    setSelectedCrime(null);
-                                    // Here you could navigate to a screen with more details
-                                    Alert.alert(
-                                       "More Details",
-                                       "This would show more details or allow reporting similar incidents"
-                                    );
-                                 }}
-                              >
-                                 More Details
-                              </Button>
-                           </XStack>
-                        </YStack>
+                     <ScrollView
+                        refreshControl={
+                           <RefreshControl
+                              refreshing={loadingCrimes}
+                              onRefresh={handleRefresh}
+                              colors={["#B71C1C"]}
+                              progressViewOffset={50}
+                              tintColor="#B71C1C"
+                           />
+                        }
+                     >
+                        {renderModalContent}
                      </ScrollView>
                   </Card>
                </View>
             </Modal>
+
+            {loadingCrimes && (
+               <View style={styles.loadingOverlay}>
+                  <ActivityIndicator size="large" color="#B71C1C" />
+               </View>
+            )}
          </View>
       </Theme>
    );
@@ -543,20 +752,15 @@ const styles = StyleSheet.create({
    },
    quickPanel: {
       position: "absolute",
-      top: Platform.OS === "ios" ? 100 : 80,
-      left: 15,
-      width: "80%",
-      maxHeight: "60%",
+      top: Platform.OS === "ios" ? 60 : 40,
+      left: 12,
+      right: 12,
+      maxHeight: "75%",
       backgroundColor: "white",
-      borderRadius: 10,
-      shadowColor: "#000",
-      shadowOffset: {
-         width: 0,
-         height: 4,
-      },
-      shadowOpacity: 0.3,
-      shadowRadius: 4.65,
-      elevation: 8,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: "#e0e0e0",
+      elevation: 4,
    },
    severityIndicator: {
       width: 12,
@@ -618,5 +822,31 @@ const styles = StyleSheet.create({
       borderTopLeftRadius: 20,
       borderTopRightRadius: 20,
       maxHeight: "60%",
+   },
+   loadingOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(255,255,255,0.8)",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 999,
+   },
+   refreshIndicator: {
+      position: "absolute",
+      top: Platform.OS === "ios" ? 100 : 80,
+      alignSelf: "center",
+      zIndex: 1,
+      backgroundColor: "rgba(255,255,255,0.9)",
+      padding: 10,
+      borderRadius: 20,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      elevation: 3,
+   },
+   statusBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 20,
    },
 });

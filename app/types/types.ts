@@ -20,3 +20,20 @@ export type Report = {
    suspectDescription?: string;
    witnessDetails?: string;
 };
+
+export interface MarkerColors {
+   theft: string;
+   assault: string;
+   vandalism: string;
+   burglary: string;
+   missing: string;
+   other: string;
+   default: string;
+}
+
+export interface SeverityColors {
+   low: string;
+   medium: string;
+   high: string;
+   [key: string]: string;
+}

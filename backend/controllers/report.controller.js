@@ -64,8 +64,8 @@ export const createReport = asyncHandler(async (req, res, next) => {
       incidentType: req.body.incidentType,
       dateTime: new Date(req.body.dateTime),
       description: req.body.description,
-      suspectDescription: req.body.suspectDescription || "", 
-      witnessDetails: req.body.witnessDetails || "", 
+      suspectDescription: req.body.suspectDescription || "",
+      witnessDetails: req.body.witnessDetails || "",
       anonymous: req.body.anonymous === "true",
       user: req.body.anonymous === "true" ? null : req.body.user,
       media: mediaUrls,
@@ -137,7 +137,7 @@ export const getUserReports = asyncHandler(async (req, res, next) => {
 export const getReportById = asyncHandler(async (req, res, next) => {
    const report = await Report.findById(req.params.id).populate(
       "user",
-      "phone"
+      "phone createdAt"
    );
 
    if (!report) {
@@ -147,5 +147,22 @@ export const getReportById = asyncHandler(async (req, res, next) => {
    res.status(200).json({
       success: true,
       data: report,
+   });
+});
+
+// @desc    Get recent alerts
+// @route   GET /api/v1/reports/recent
+export const getRecentAlerts = asyncHandler(async (req, res, next) => {
+   const { limit = 4 } = req.query; // Default to 10 alerts if limit is not provided
+
+   const recentAlerts = await Report.find()
+      .sort("-createdAt")
+      .limit(parseInt(limit))
+      .select("title description createdAt location");
+
+   res.status(200).json({
+      success: true,
+      count: recentAlerts.length,
+      data: recentAlerts,
    });
 });

@@ -1,4 +1,3 @@
-// app/(screens)/report-details.tsx
 import { ScrollView, YStack, XStack, Text, Image, Button, View } from "tamagui";
 import { StyleSheet, Linking, ActivityIndicator } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -241,6 +240,8 @@ export default function ReportDetailScreen() {
                      </Text>
                      <Button
                         marginTop="$2"
+                        backgroundColor={"#B71C1C"}
+                        color={"white"}
                         onPress={() =>
                            Linking.openURL(
                               `https://www.google.com/maps?q=${report.location.coordinates[1]},${report.location.coordinates[0]}`

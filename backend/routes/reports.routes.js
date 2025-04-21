@@ -4,6 +4,7 @@ const router = express.Router();
 import { protect } from "../middleware/auth.middleware.js";
 import {
    createReport,
+   getRecentAlerts,
    getReportById,
    getReports,
    getReportsInRadius,
@@ -18,6 +19,7 @@ router
 
 router.route("/radius/:lat/:lng/:distance").get(getReportsInRadius);
 router.route("/user").get(protect, getUserReports);
+router.route("/recent").get(getRecentAlerts);
 router.route("/:id").get(getReportById);
 
 router.get("/test", (req, res) => {
