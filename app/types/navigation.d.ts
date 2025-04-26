@@ -6,6 +6,7 @@ declare global {
       report: undefined;
       profile: undefined;
       community: undefined;
+      resources: undefined;
    };
 
    type IconName = React.ComponentProps<typeof Ionicons>["name"];

@@ -1,7 +1,6 @@
 import Report from "../models/report.model.js";
 import asyncHandler from "../utils/async.js";
 import { uploadOnCloudinary } from "../config/cloudinary.js";
-import fs from "fs";
 
 // @desc    Create new report
 // @route   POST /api/v1/reports

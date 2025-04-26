@@ -1,54 +1,64 @@
-import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+   import { Tabs } from "expo-router";
+   import { Ionicons } from "@expo/vector-icons";
 
-export default function TabsLayout() {
-   return (
-      <Tabs
-         screenOptions={{
-            tabBarActiveTintColor: "#B71C1C",
-            headerShown: false,
-         }}
-      >
-         {/* Home (Landing Page) */}
-         <Tabs.Screen
-            name="index"
-            options={{
-               title: "Home",
-               tabBarIcon: ({ color }) => (
-                  <Ionicons name="home" size={24} color={color} />
-               ),
+   export default function TabsLayout() {
+      return (
+         <Tabs
+            screenOptions={{
+               tabBarActiveTintColor: "#B71C1C",
+               headerShown: false,
             }}
-         />
-         {/* Community Tab */}
-         <Tabs.Screen
-            name="community"
-            options={{
-               title: "Community",
-               tabBarIcon: ({ color }) => (
-                  <Ionicons name="people" size={24} color={color} />
-               ),
-            }}
-         />
-         {/* Report Tab */}
-         <Tabs.Screen
-            name="report"
-            options={{
-               title: "Report",
-               tabBarIcon: ({ color }) => (
-                  <Ionicons name="alert-circle" size={24} color={color} />
-               ),
-            }}
-         />
-         {/* Profile Tab */}
-         <Tabs.Screen
-            name="profile"
-            options={{
-               title: "Profile",
-               tabBarIcon: ({ color }) => (
-                  <Ionicons name="person" size={24} color={color} />
-               ),
-            }}
-         />
-      </Tabs>
-   );
-}
+         >
+            {/* Home (Landing Page) */}
+            <Tabs.Screen
+               name="index"
+               options={{
+                  title: "Home",
+                  tabBarIcon: ({ color }) => (
+                     <Ionicons name="home" size={24} color={color} />
+                  ),
+               }}
+            />
+            {/* Community Tab */}
+            <Tabs.Screen
+               name="community"
+               options={{
+                  title: "Community",
+                  tabBarIcon: ({ color }) => (
+                     <Ionicons name="people" size={24} color={color} />
+                  ),
+               }}
+            />
+            {/* Report Tab */}
+            <Tabs.Screen
+               name="report"
+               options={{
+                  title: "Report",
+                  tabBarIcon: ({ color }) => (
+                     <Ionicons name="alert-circle" size={24} color={color} />
+                  ),
+               }}
+            />
+            {/* Resources Tab */}
+            <Tabs.Screen
+               name="resources"
+               options={{
+                  title: "Resources",
+                  tabBarIcon: ({ color }) => (
+                     <Ionicons name="book" size={24} color={color} />
+                  ),
+               }}
+            />
+            {/* Profile Tab */}
+            <Tabs.Screen
+               name="profile"
+               options={{
+                  title: "Profile",
+                  tabBarIcon: ({ color }) => (
+                     <Ionicons name="person" size={24} color={color} />
+                  ),
+               }}
+            />
+         </Tabs>
+      );
+   }
