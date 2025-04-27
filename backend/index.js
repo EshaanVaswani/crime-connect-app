@@ -12,14 +12,26 @@ dotenv.config();
 connectDB();
 
 const app = express();
-
+app.use(
+  cors({
+    origin: "http://localhost:5173", // allow your frontend
+    credentials: true, // allow cookies or headers if you use them
+  })
+);
 // Middleware
 // In your server.js or app.js
 app.use(
+<<<<<<< Updated upstream
    cors({
       origin: ["exp://192.168.1.102:8081", "http://localhost:5173"],
       credentials: true,
    })
+=======
+  cors({
+    origin: process.env.CORS_ORIGIN,
+    credentials: true,
+  })
+>>>>>>> Stashed changes
 );
 app.use(cookieParser());
 app.use(express.json({ limit: "50mb" }));
@@ -35,19 +47,19 @@ app.use("/api/v1/emergency-contact", emergencyContactRoutes);
 app.use("/api/v1/reports", reportRoutes);
 
 app.use((err, req, res, next) => {
-   console.error(err.stack);
-   res.status(500).json({
-      success: false,
-      error: err.message || "Server Error",
-   });
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    error: err.message || "Server Error",
+  });
 });
 
 app.get("/api/v1/health", (req, res) => {
-   res.status(200).json({
-      status: "ok",
-      timestamp: new Date(),
-      message: "Server is running",
-   });
+  res.status(200).json({
+    status: "ok",
+    timestamp: new Date(),
+    message: "Server is running",
+  });
 });
 
 const server = http.createServer(app);
@@ -73,6 +85,11 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 3000;
 
+<<<<<<< Updated upstream
 server.listen(PORT, "0.0.0.0", () =>
    console.log(`Server running on port ${PORT}`)
+=======
+app.listen(PORT, "0.0.0.0", () =>
+  console.log(`Server running on port ${PORT}`)
+>>>>>>> Stashed changes
 );
