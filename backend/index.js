@@ -22,6 +22,7 @@ app.use(
 // In your server.js or app.js
 app.use(
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
    cors({
       origin: ["exp://192.168.1.102:8081", "http://localhost:5173"],
       credentials: true,
