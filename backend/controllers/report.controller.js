@@ -1,6 +1,7 @@
 import Report from "../models/report.model.js";
 import asyncHandler from "../utils/async.js";
 import { uploadOnCloudinary } from "../config/cloudinary.js";
+import { io } from "../index.js";
 
 // @desc    Create new report
 // @route   POST /api/v1/reports
@@ -71,12 +72,20 @@ export const createReport = asyncHandler(async (req, res, next) => {
       location: location,
    };
 
-   console.log("Processed report data:", reportData);
-
    const report = await Report.create(reportData);
 
    if (!report) {
       return next(new Error("Report creation failed"));
+   }
+
+   if (io.policeDashboards.size > 0) {
+      io.to([...io.policeDashboards]).emit("new_report", {
+         _id: report._id,
+         title: report.title,
+         incidentType: report.incidentType,
+         location: report.location,
+         timestamp: report.createdAt,
+      });
    }
 
    res.status(201).json({

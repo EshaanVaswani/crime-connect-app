@@ -3,6 +3,8 @@ import express from "express";
 import cors from "cors";
 import { connectDB } from "./config/db.js";
 import cookieParser from "cookie-parser";
+import { Server } from "socket.io";
+import http from "http";
 
 dotenv.config();
 
@@ -15,7 +17,7 @@ const app = express();
 // In your server.js or app.js
 app.use(
    cors({
-      origin: process.env.CORS_ORIGIN,
+      origin: ["exp://192.168.1.102:8081", "http://localhost:5173"],
       credentials: true,
    })
 );
@@ -48,8 +50,29 @@ app.get("/api/v1/health", (req, res) => {
    });
 });
 
+const server = http.createServer(app);
+
+export const io = new Server(server, {
+   cors: {
+      origin: ["exp://192.168.1.102:8081", "http://localhost:5173"],
+      methods: ["GET", "POST"],
+   },
+});
+
+io.policeDashboards = new Set();
+
+io.on("connection", (socket) => {
+   console.log("Police dashboard connected:", socket.id);
+   io.policeDashboards.add(socket.id);
+
+   socket.on("disconnect", () => {
+      console.log("Police dashboard disconnected:", socket.id);
+      io.policeDashboards.delete(socket.id);
+   });
+});
+
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, "0.0.0.0", () =>
+server.listen(PORT, "0.0.0.0", () =>
    console.log(`Server running on port ${PORT}`)
 );
