@@ -27,10 +27,15 @@ app.use(
       credentials: true,
    })
 =======
+=======
+>>>>>>> Stashed changes
   cors({
     origin: process.env.CORS_ORIGIN,
     credentials: true,
   })
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 );
 app.use(cookieParser());
@@ -60,6 +65,7 @@ app.get("/api/v1/health", (req, res) => {
     timestamp: new Date(),
     message: "Server is running",
   });
+<<<<<<< Updated upstream
 });
 
 const server = http.createServer(app);
@@ -81,13 +87,20 @@ io.on("connection", (socket) => {
       console.log("Police dashboard disconnected:", socket.id);
       io.policeDashboards.delete(socket.id);
    });
+=======
+>>>>>>> Stashed changes
 });
 
 const PORT = process.env.PORT || 3000;
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 server.listen(PORT, "0.0.0.0", () =>
    console.log(`Server running on port ${PORT}`)
+=======
+app.listen(PORT, "0.0.0.0", () =>
+  console.log(`Server running on port ${PORT}`)
+>>>>>>> Stashed changes
 =======
 app.listen(PORT, "0.0.0.0", () =>
   console.log(`Server running on port ${PORT}`)
