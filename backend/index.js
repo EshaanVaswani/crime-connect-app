@@ -23,6 +23,7 @@ app.use(
 app.use(
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
    cors({
       origin: ["exp://192.168.1.102:8081", "http://localhost:5173"],
       credentials: true,
@@ -30,11 +31,16 @@ app.use(
 =======
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
   cors({
     origin: process.env.CORS_ORIGIN,
     credentials: true,
   })
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -67,6 +73,7 @@ app.get("/api/v1/health", (req, res) => {
     message: "Server is running",
   });
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 });
 
 const server = http.createServer(app);
@@ -90,14 +97,21 @@ io.on("connection", (socket) => {
    });
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 });
 
 const PORT = process.env.PORT || 3000;
 
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 server.listen(PORT, "0.0.0.0", () =>
    console.log(`Server running on port ${PORT}`)
+=======
+app.listen(PORT, "0.0.0.0", () =>
+  console.log(`Server running on port ${PORT}`)
+>>>>>>> Stashed changes
 =======
 app.listen(PORT, "0.0.0.0", () =>
   console.log(`Server running on port ${PORT}`)
